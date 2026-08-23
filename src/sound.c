@@ -97,6 +97,11 @@ void apu_drum(uint8_t type)
         NR42_REG = 0x81;    /* medium volume, fast decay */
         NR43_REG = 0x09;    /* 7-bit LFSR: bright metallic hiss */
         break;
+    case DRUM_CRASH:
+        NR41_REG = 0x00;
+        NR42_REG = 0xC4;    /* loud, slow decay: cymbal wash */
+        NR43_REG = 0x12;    /* bright 15-bit noise */
+        break;
     default:
         return;
     }

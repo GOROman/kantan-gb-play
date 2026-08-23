@@ -23,11 +23,33 @@ void main(void)
     uint8_t step_timer = 0;
     uint8_t step = 0;           /* 8th-note step in the bar (0-7) */
 
-    /* 8-beat: kick on 1, snare on 3, hats between */
-    static const uint8_t drum_pat[8] = {
-        DRUM_KICK, DRUM_HAT, DRUM_HAT, DRUM_HAT,
-        DRUM_SNARE, DRUM_HAT, DRUM_HAT, DRUM_HAT,
+    /* Rhythm per the X68000 MDX: four-on-the-floor kicks, and every
+       8th bar a fill (kick, snare, kick 16ths, snare, crash) */
+    static const uint8_t drum_main[8] = {
+        DRUM_KICK, DRUM_NONE, DRUM_KICK, DRUM_NONE,
+        DRUM_KICK, DRUM_NONE, DRUM_KICK, DRUM_NONE,
     };
+    static const uint8_t drum_fill[8] = {
+        DRUM_KICK, DRUM_NONE, DRUM_SNARE, DRUM_NONE,
+        DRUM_KICK, DRUM_KICK, DRUM_SNARE, DRUM_CRASH,
+    };
+    uint8_t bar = 0;
+
+    /* Demo (SELECT+A): Space Harrier main theme progression, one entry
+       per half bar. Derived from the X68000 MDX analysis:
+       (C F Fm C) x3, then F Dm Fm C as the turnaround. {dir, swap} */
+    static const uint8_t demo_seq[32][2] = {
+        { DIR_UP, 0 }, { DIR_UP, 0 }, { DIR_RIGHT, 0 }, { DIR_RIGHT, 0 },
+        { DIR_RIGHT, 0 }, { DIR_RIGHT, 1 }, { DIR_UP, 0 }, { DIR_UP, 0 },
+        { DIR_UP, 0 }, { DIR_UP, 0 }, { DIR_RIGHT, 0 }, { DIR_RIGHT, 0 },
+        { DIR_RIGHT, 0 }, { DIR_RIGHT, 1 }, { DIR_UP, 0 }, { DIR_UP, 0 },
+        { DIR_UP, 0 }, { DIR_UP, 0 }, { DIR_RIGHT, 0 }, { DIR_RIGHT, 0 },
+        { DIR_RIGHT, 0 }, { DIR_RIGHT, 1 }, { DIR_UP, 0 }, { DIR_UP, 0 },
+        { DIR_UP, 0 }, { DIR_UP, 0 }, { DIR_RIGHT, 0 }, { DIR_RIGHT, 0 },
+        { DIR_UR, 0 }, { DIR_RIGHT, 1 }, { DIR_UP, 0 }, { DIR_UP, 0 },
+    };
+    uint8_t demo = 0;
+    uint8_t demo_idx = 0;
 
 #define STEP_PAR (step & 1)
     uint8_t pending_off = 0;    /* key-off waits for the next grid step */
@@ -59,9 +81,34 @@ void main(void)
         /* B held: major/minor swap */
         cur = (j & J_B) ? &chords_swap[sel] : &chords[sel];
 
-        /* SELECT held: up/down = BPM, left/right = octave */
+        /* SELECT held: up/down = BPM, left/right = octave, A = demo */
         if (j & J_SELECT) {
-            uint16_t nb = bpm;
+            uint16_t nb;
+            if ((j & J_A) && !(prev_j & J_A)) {
+                demo ^= 1;
+                if (demo) {
+                    /* Space Harrier tempo (@t225 = 157.5) */
+                    bpm = 155;
+                    step_period = (uint8_t)((1800 + bpm / 2) / bpm);
+                    ui_show_bpm(bpm);
+                    demo_idx = 0;
+                    pending_off = 0;
+                    step = 7;
+                    step_timer = step_period - 1;
+                } else {
+                    if (ym) {
+                        ym_chord_off();
+                        ym_bass_off();
+                    } else {
+                        apu_chord_off();
+                        apu_bass_off();
+                    }
+                    playing = 0;
+                    accomp = 0;
+                    ui_show_chord(chords[sel].name, 0);
+                }
+            }
+            nb = bpm;   /* after the demo toggle, which sets its own BPM */
             if ((j & J_UP) && !(prev_j & J_UP) && nb < 240)
                 nb += 5;
             if ((j & J_DOWN) && !(prev_j & J_DOWN) && nb > 40)
@@ -85,7 +132,7 @@ void main(void)
         }
 
         /* new direction latches a chord (A/B plays it) */
-        if (dir != DIR_NONE && dir != sel) {
+        if (!demo && dir != DIR_NONE && dir != sel) {
             sel = dir;
             cur = (j & J_B) ? &chords_swap[sel] : &chords[sel];
             ui_highlight(sel);
@@ -95,14 +142,15 @@ void main(void)
 
         /* B toggled while still holding a play button: swap retrigger.
            A lone B release must NOT retrigger — just let key-off happen. */
-        if ((j & J_B) != (prev_j & J_B) &&
+        if (!demo && (j & J_B) != (prev_j & J_B) &&
             (j & (J_A | J_B)) && (prev_j & (J_A | J_B))) {
             ui_show_chord(cur->name, playing);
             retrig |= playing;
         }
 
         /* A or B pressed: note on (B plays the swapped chord) */
-        if ((j & (J_A | J_B)) && !(prev_j & (J_A | J_B))) {
+        if (!demo && !(j & J_SELECT) &&
+            (j & (J_A | J_B)) && !(prev_j & (J_A | J_B))) {
             retrig = 1;
             playing = 1;
             pending_off = 0;
@@ -124,13 +172,13 @@ void main(void)
         /* accompaniment (bass + rhythm) runs while the D-pad is held or a
            chord is playing; SELECT gestures don't start it */
         {
-            uint8_t acc = playing;
+            uint8_t acc = playing || demo;
             if (!(j & J_SELECT) &&
                 (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)))
                 acc = 1;
             if (acc && !accomp) {
                 /* on-chord: the bass pedals on C (X/C) */
-                uint8_t bass = 60 + oct_off - (STEP_PAR ? 12 : 24);
+                uint8_t bass = 60 + oct_off - 24;
                 if (ym)
                     ym_bass_note(bass);
                 else
@@ -144,6 +192,8 @@ void main(void)
         if (++step_timer >= step_period) {
             step_timer = 0;
             step = (step + 1) & 7;
+            if (step == 0)
+                bar++;
             if (pending_off) {
                 /* quantized chord key-off */
                 pending_off = 0;
@@ -156,13 +206,35 @@ void main(void)
                     ui_show_chord(cur->name, 0);
                 }
             }
+            /* demo: next chord on every half-bar boundary */
+            if (demo && (step & 3) == 0) {
+                uint8_t notes[3];
+                uint8_t i;
+                uint8_t d = demo_seq[demo_idx][0];
+                uint8_t sw = demo_seq[demo_idx][1];
+                demo_idx = (demo_idx + 1) & 31;
+                cur = sw ? &chords_swap[d] : &chords[d];
+                if (d != sel || !playing) {
+                    sel = d;
+                    ui_highlight(sel);
+                    ui_push_history(cur->name);
+                }
+                ui_show_chord(cur->name, 1);
+                playing = 1;
+                for (i = 0; i < 3; i++)
+                    notes[i] = cur->note[i] + oct_off;
+                if (ym)
+                    ym_chord_on(notes);
+                else
+                    apu_chord_on(notes);
+            }
             /* keep going while the D-pad is held */
-            accomp = playing ||
+            accomp = demo || playing ||
                      (!(j & J_SELECT) &&
                       (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)));
             if (accomp) {
-                uint8_t note = 60 + oct_off - (STEP_PAR ? 12 : 24);
-                apu_drum(drum_pat[step]);
+                uint8_t note = 60 + oct_off - 24;
+                apu_drum(((bar & 7) == 7 ? drum_fill : drum_main)[step]);
                 if (ym)
                     ym_bass_note(note);
                 else
@@ -173,6 +245,15 @@ void main(void)
                 else
                     apu_bass_off();
             }
+        }
+
+        /* 16th off-beat: bass jumps two octaves up (MDX ch7 style) */
+        if (accomp && step_timer == (uint8_t)(step_period >> 1)) {
+            uint8_t hi = 60 + oct_off;
+            if (ym)
+                ym_bass_note(hi);
+            else
+                apu_bass_note(hi);
         }
 
         /* START: stop / panic (immediate, not quantized) */
@@ -187,11 +268,12 @@ void main(void)
             playing = 0;
             pending_off = 0;
             accomp = 0;
+            demo = 0;
             ui_show_chord(chords[sel].name, 0);
         }
 
         /* both A and B released: key off on the next grid step */
-        if (!(j & (J_A | J_B)) && (prev_j & (J_A | J_B)))
+        if (!demo && !(j & (J_A | J_B)) && (prev_j & (J_A | J_B)))
             pending_off = 1;
 
         prev_j = j;
