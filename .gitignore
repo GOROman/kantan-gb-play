@@ -1,0 +1,8 @@
+build/
+*.ihx
+*.lst
+*.map
+*.noi
+*.sym
+*.o
+*.rel
