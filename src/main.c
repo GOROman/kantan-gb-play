@@ -178,7 +178,7 @@ void main(void)
                 acc = 1;
             if (acc && !accomp) {
                 /* on-chord: the bass pedals on C (X/C) */
-                uint8_t bass = 60 + oct_off - 24;
+                uint8_t bass = 60 + oct_off - 36;
                 if (ym)
                     ym_bass_note(bass);
                 else
@@ -233,7 +233,9 @@ void main(void)
                      (!(j & J_SELECT) &&
                       (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)));
             if (accomp) {
-                uint8_t note = 60 + oct_off - 24;
+                /* 8th-note octave bass C1<->C2, as in the arcade-style
+                   MDX bass track */
+                uint8_t note = 60 + oct_off - (STEP_PAR ? 24 : 36);
                 uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
                 if (ym)
                     ym_drum(hit);
@@ -249,15 +251,6 @@ void main(void)
                 else
                     apu_bass_off();
             }
-        }
-
-        /* 16th off-beat: bass jumps two octaves up (MDX ch7 style) */
-        if (accomp && step_timer == (uint8_t)(step_period >> 1)) {
-            uint8_t hi = 60 + oct_off;
-            if (ym)
-                ym_bass_note(hi);
-            else
-                apu_bass_note(hi);
         }
 
         /* START: stop / panic (immediate, not quantized) */
