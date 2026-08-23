@@ -1,5 +1,8 @@
 #include <gb/gb.h>
 #include "ym2151.h"
+#include "adpcm_smp.h"
+
+static uint8_t has_adpcm;
 
 /*
  * YM2151 driver for the Chromatic FPGA expansion.
@@ -39,16 +42,17 @@ static const uint8_t voice_chord[26] = {
     0x03, 0x03, 0x00, 0x00,
     0x03, 0x03, 0x03, 0x08,
 };
+/* HARRIER.MDX voice 4: the actual bass patch (used by its bass tracks) */
 static const uint8_t voice_bass[26] = {
     0x3A, 0x0F,
-    0x3F, 0x03, 0x3A, 0x61,
-    0x05, 0x00, 0x00, 0x02,
-    0x1F, 0x19, 0x1A, 0x1F,
-    0x0F, 0x10, 0x10, 0x11,
-    0x4D, 0xCA, 0x8A, 0x0D,
-    0xD5, 0xA5, 0xA5, 0xA7,
+    0x00, 0x00, 0x04, 0x01,
+    0x22, 0x28, 0x21, 0x04,
+    0x5F, 0x5F, 0x5F, 0x9F,
+    0x0B, 0x0B, 0x0B, 0x06,
+    0x05, 0x05, 0x05, 0x04,
+    0x37, 0x37, 0x37, 0x37,
 };
-/* single-op sine thump, M1 only */
+/* single-op sine thump, M1 only (FM drum fallback on CH3) */
 static const uint8_t voice_kick[26] = {
     0x07, 0x01,
     0x00, 0x00, 0x00, 0x00,
@@ -58,17 +62,6 @@ static const uint8_t voice_kick[26] = {
     0x04, 0x00, 0x00, 0x00,
     0xFA, 0x00, 0x00, 0x00,
 };
-/* noise drum on CH7: only C2 (the noise slot) sounds */
-static const uint8_t voice_noise[26] = {
-    0x07, 0x08,
-    0x00, 0x00, 0x00, 0x00,
-    0x7F, 0x7F, 0x7F, 0x05,
-    0x00, 0x00, 0x00, 0x1F,
-    0x00, 0x00, 0x00, 0x0B,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0xF8,
-};
-
 static void load_voice(uint8_t ch, const uint8_t *v)
 {
     uint8_t i;
@@ -86,6 +79,37 @@ static void load_voice(uint8_t ch, const uint8_t *v)
     }
 }
 
+/* streaming state: sample currently being fed to the ADPCM FIFO */
+static const uint8_t *ad_ptr;
+static uint16_t ad_left = 0;
+
+/* feed while the FIFO signals ready, bounded per call */
+static void adpcm_feed(uint8_t budget)
+{
+    if (!ad_left)
+        return;
+    YM_REG = 0xFF;                          /* data mode */
+    while (ad_left && budget-- && (YM_STATUS & 0x40)) {
+        YM_DATA = *ad_ptr++;
+        ad_left--;
+    }
+}
+
+static void adpcm_play(const uint8_t *data, uint16_t len)
+{
+    YM_REG = 0xFD;                          /* stop */
+    ad_ptr = data;
+    ad_left = len;
+    adpcm_feed(64);                         /* prime the FIFO */
+    YM_REG = 0xFE;                          /* play */
+}
+
+void ym_adpcm_tick(void)
+{
+    if (has_adpcm)
+        adpcm_feed(160);    /* > 131 bytes/frame needed at 15.6 kHz */
+}
+
 void ym_init(void)
 {
     uint8_t ch;
@@ -93,9 +117,13 @@ void ym_init(void)
     for (ch = 0; ch < 3; ch++)
         load_voice(ch, voice_chord);
     load_voice(4, voice_bass);
-    load_voice(6, voice_kick);
-    load_voice(7, voice_noise);
-    ym_write(0x0F, 0x00);                   /* noise off for now */
+    load_voice(3, voice_kick);              /* FM drum fallback */
+
+    has_adpcm = (EXT_VERSION >= 0x02);
+    if (has_adpcm) {
+        YM_REG = 0xFD;                      /* ADPCM stop */
+        ADPCM_CTRL = 0xF4;                  /* volume max, ADPCM enable */
+    }
 }
 
 /* YM2151 key code: note within octave uses a 0-15 code with gaps */
@@ -146,36 +174,31 @@ void ym_bass_off(void)
 
 void ym_drum(uint8_t type)
 {
-    switch (type) {
-    case 1: /* DRUM_KICK: low FM thump on CH6 */
-        ym_write(0x08, 6);
-        ym_write(0x28 + 6, 0x0E);               /* low C */
-        ym_write(0x08, (0x01 << 3) | 6);        /* key on M1 */
-        break;
-    case 2: /* DRUM_SNARE */
-        ym_write(0x08, 7);
-        ym_write(0x0F, 0x8C);                   /* noise on, mid freq */
-        ym_write(0xE0 + 24 + 7, 0xF8);          /* C2 D1L/RR: short */
-        ym_write(0x28 + 7, 0x4A);
-        ym_write(0x08, (0x08 << 3) | 7);        /* key on C2 */
-        break;
-    case 3: /* DRUM_HAT */
-        ym_write(0x08, 7);
-        ym_write(0x0F, 0x83);                   /* noise on, bright */
-        ym_write(0xE0 + 24 + 7, 0xFA);
-        ym_write(0x28 + 7, 0x4A);
-        ym_write(0x08, (0x08 << 3) | 7);
-        break;
-    case 4: /* DRUM_CRASH: long noise wash */
-        ym_write(0x08, 7);
-        ym_write(0x0F, 0x86);
-        ym_write(0xE0 + 24 + 7, 0x04);          /* slow release */
-        ym_write(0x28 + 7, 0x4A);
-        ym_write(0x08, (0x08 << 3) | 7);
-        break;
-    default:
-        break;
+    uint8_t kc;
+
+    if (type == 0)
+        return;
+
+    /* ADPCM one-shots (1ch, so a new hit cuts the previous one) */
+    if (has_adpcm) {
+        switch (type) {
+        case 1: adpcm_play(adpcm_kick, ADPCM_KICK_LEN); return;
+        case 2: adpcm_play(adpcm_snare, ADPCM_SNARE_LEN); return;
+        case 4: adpcm_play(adpcm_crash, ADPCM_CRASH_LEN); return;
+        default: break;     /* hat falls through to FM */
+        }
     }
+
+    /* FM fallback on CH3: same thump patch, pitched per drum */
+    switch (type) {
+    case 1:  kc = 0x0E; break;      /* kick: low */
+    case 2:  kc = 0x3A; break;      /* snare-ish: mid */
+    case 3:  kc = 0x6A; break;      /* hat-ish: high tick */
+    default: kc = 0x5A; break;      /* crash-ish */
+    }
+    ym_write(0x08, 3);
+    ym_write(0x28 + 3, kc);
+    ym_write(0x08, (0x01 << 3) | 3);            /* key on M1 */
 }
 
 void ym_chord_off(void)

@@ -281,6 +281,8 @@ void main(void)
             pending_off = 1;
 
         prev_j = j;
+        if (ym)
+            ym_adpcm_tick();    /* keep the ADPCM FIFO fed */
         vsync();
     }
 }

@@ -5,7 +5,7 @@ LCC = $(GBDK)/bin/lcc
 LCCFLAGS = -Wm-yc -Wm-yn"KANTANGB"
 
 ROM = build/kantan-gb-play.gbc
-SRCS = src/main.c src/chord.c src/sound.c src/ym2151.c src/ui.c src/wheel_gfx.c src/badge_gfx.c
+SRCS = src/main.c src/chord.c src/sound.c src/ym2151.c src/ui.c src/wheel_gfx.c src/badge_gfx.c src/adpcm_smp.c
 
 all: $(ROM)
 
