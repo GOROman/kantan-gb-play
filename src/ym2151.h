@@ -31,5 +31,7 @@ void ym_chord_on(const uint8_t notes[3]);
 void ym_bass_note(uint8_t note);
 void ym_bass_off(void);
 void ym_chord_off(void);    /* chord channels 0-2 only */
+/* rhythm: DRUM_* types from sound.h, on YM CH6 (FM kick) / CH7 (noise) */
+void ym_drum(uint8_t type);
 
 #endif

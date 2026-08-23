@@ -234,7 +234,11 @@ void main(void)
                       (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)));
             if (accomp) {
                 uint8_t note = 60 + oct_off - 24;
-                apu_drum(((bar & 7) == 7 ? drum_fill : drum_main)[step]);
+                uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
+                if (ym)
+                    ym_drum(hit);
+                else
+                    apu_drum(hit);
                 if (ym)
                     ym_bass_note(note);
                 else
