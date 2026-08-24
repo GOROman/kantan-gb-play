@@ -53,8 +53,8 @@ void main(void)
 
 #define STEP_PAR (step & 1)
     uint8_t pending_off = 0;    /* key-off waits for the next grid step */
-    int8_t octv = -2;           /* octave shift, -3..+4 (SELECT + left/right) */
-    int8_t oct_off = -24;       /* octv * 12 */
+    int8_t octv = 0;            /* octave shift, -3..+4 (SELECT + left/right) */
+    int8_t oct_off = 0;         /* octv * 12 */
     uint8_t j = 0;
     uint8_t last_raw = 0;
     uint8_t accomp = 0;         /* bass + rhythm running */

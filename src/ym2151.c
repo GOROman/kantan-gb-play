@@ -90,6 +90,14 @@ static void adpcm_feed(uint8_t budget)
     if (!ad_left)
         return;
     YM_REG = 0xFF;                          /* data mode */
+    /* Some bridge revisions report READY=0 until the first byte has
+       arrived.  Prime one byte unconditionally to break that deadlock. */
+    if (budget && !(YM_STATUS & 0x40)) {
+        uint8_t packed = *ad_ptr++;
+        YM_DATA = (uint8_t)((packed << 4) | (packed >> 4));
+        ad_left--;
+        budget--;
+    }
     while (ad_left && budget-- && (YM_STATUS & 0x40)) {
         /* FPGA decoder consumes the high nibble first; the encoder stores
            the first sample in the low nibble. */

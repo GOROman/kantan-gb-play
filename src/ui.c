@@ -206,7 +206,7 @@ void ui_init(uint8_t ym_present)
     gotoxy(12, 4);  printf("|      |");
     gotoxy(12, 5);  printf("+------+");
 
-    ui_show_oct(-2);
+    ui_show_oct(0);
 
     /* progression history */
     gotoxy(12, 7);  printf("PROG:");
