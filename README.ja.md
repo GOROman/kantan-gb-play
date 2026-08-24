@@ -1,6 +1,6 @@
-# KANTAN GB PLAY
-
 [English](README.md) | **日本語**
+
+# KANTAN GB PLAY
 
 ゲームボーイカラー用の和音（コード）演奏アプリROM。
 [KANTAN Play](https://github.com/InstaChord/KANTAN_Play_core) の「degree + key → 和音」の考え方を踏襲し、十字キー8方向でコードを選んでAボタンで弾く楽器です。キーは C major 固定。

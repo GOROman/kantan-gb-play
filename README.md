@@ -1,6 +1,6 @@
-# KANTAN GB PLAY
-
 **English** | [日本語](README.ja.md)
+
+# KANTAN GB PLAY
 
 A chord-playing instrument ROM for the Game Boy Color.
 Inspired by [KANTAN Play](https://github.com/InstaChord/KANTAN_Play_core)'s "degree + key → chord" concept: pick one of eight chords with the D-pad and strum it with the A button. The key is fixed to C major.
