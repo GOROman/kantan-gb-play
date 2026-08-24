@@ -160,7 +160,7 @@ void ui_init(uint8_t ym_present)
     /* status bars */
     gotoxy(0, 0);
     printf("KANTAN");
-    ui_show_bpm(140);
+    ui_show_bpm(155);
     gotoxy(14, 0);
     printf(ym_present ? "YM2151" : "   APU");
     /* keep the last cell of the bottom row unwritten: filling column 19
@@ -206,7 +206,7 @@ void ui_init(uint8_t ym_present)
     gotoxy(12, 4);  printf("|      |");
     gotoxy(12, 5);  printf("+------+");
 
-    ui_show_oct(0);
+    ui_show_oct(-2);
 
     /* progression history */
     gotoxy(12, 7);  printf("PROG:");
@@ -256,6 +256,16 @@ void ui_show_bpm(uint16_t bpm)
     if (bpm < 100)
         printf(" ");
     printf("%u", bpm);
+}
+
+void ui_show_adpcm(uint8_t status, uint8_t control, uint8_t version)
+{
+    /* keep each line <= 8 chars: column 19 is the screen edge and the
+       console wraps overflow onto the next row */
+    gotoxy(12, 14);
+    printf("A%02X C%02X", status, control);
+    gotoxy(12, 15);
+    printf("V:%02X B:%u", version, (status & 0x80) ? 1 : 0);
 }
 
 void ui_show_oct(int8_t oct)

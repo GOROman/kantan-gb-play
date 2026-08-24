@@ -18,8 +18,8 @@ void main(void)
     uint8_t sel = DIR_UP;       /* latched selection */
     uint8_t playing = 0;
     uint8_t prev_j = 0;
-    uint16_t bpm = 140;
-    uint8_t step_period = 13;   /* frames per 8th note = round(1800 / BPM) */
+    uint16_t bpm = 155;
+    uint8_t step_period = 12;   /* frames per 8th note = round(1800 / BPM) */
     uint8_t step_timer = 0;
     uint8_t step = 0;           /* 8th-note step in the bar (0-7) */
 
@@ -53,8 +53,8 @@ void main(void)
 
 #define STEP_PAR (step & 1)
     uint8_t pending_off = 0;    /* key-off waits for the next grid step */
-    int8_t octv = 0;            /* octave shift, -3..+4 (SELECT + left/right) */
-    int8_t oct_off = 0;         /* octv * 12 */
+    int8_t octv = -2;           /* octave shift, -3..+4 (SELECT + left/right) */
+    int8_t oct_off = -24;       /* octv * 12 */
     uint8_t j = 0;
     uint8_t last_raw = 0;
     uint8_t accomp = 0;         /* bass + rhythm running */
@@ -67,6 +67,7 @@ void main(void)
     ui_init(ym);
     ui_highlight(sel);
     ui_show_chord(chords[sel].name, 0);
+    ui_show_adpcm(YM_STATUS, ADPCM_CTRL, EXT_VERSION);
 
     while (1) {
         /* debounce: accept a reading only when stable for 2 frames */
@@ -157,6 +158,10 @@ void main(void)
             (j & (J_A | J_B)) && !(prev_j & (J_A | J_B))) {
             retrig = 1;
             playing = 1;
+            /* ADPCM isolation test: trigger a one-shot immediately, without
+               waiting for the accompaniment grid. */
+            if (ym)
+                ym_drum((j & J_B) ? DRUM_SNARE : DRUM_KICK);
             pending_off = 0;
             ui_show_chord(cur->name, 1);
             ui_push_history(cur->name);
@@ -181,8 +186,9 @@ void main(void)
                 (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)))
                 acc = 1;
             if (acc && !accomp) {
-                /* on-chord: the bass pedals on C (X/C) */
-                uint8_t bass = 60 + oct_off - 24;
+                /* on-chord: the bass pedals on C (X/C); the bass octave
+                   is fixed (-1 base) and ignores the global OCT shift */
+                uint8_t bass = 60 - 24;
                 if (ym)
                     ym_bass_note(bass);
                 else
@@ -237,9 +243,9 @@ void main(void)
                      (!(j & J_SELECT) &&
                       (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)));
             if (accomp) {
-                /* 8th-note octave bass C2<->C3 (the MDX uses C1<->C2,
-                   too low for a small speaker) */
-                uint8_t note = 60 + oct_off - (STEP_PAR ? 12 : 24);
+                /* 8th-note octave bass C2<->C3, fixed octave (the MDX
+                   uses C1<->C2, too low for a small speaker) */
+                uint8_t note = 60 - (STEP_PAR ? 12 : 24);
                 uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
                 if (ym)
                     ym_drum(hit);
@@ -280,6 +286,8 @@ void main(void)
         prev_j = j;
         if (ym)
             ym_adpcm_tick();    /* keep the ADPCM FIFO fed */
+        if (!(step_timer & 7))
+            ui_show_adpcm(YM_STATUS, ADPCM_CTRL, EXT_VERSION);
         vsync();
     }
 }
