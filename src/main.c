@@ -138,6 +138,8 @@ void main(void)
             ui_highlight(sel);
             ui_show_chord(cur->name, playing);
             retrig = playing;
+            if (playing)
+                ui_push_history(cur->name);
         }
 
         /* B toggled while still holding a play button: swap retrigger.
@@ -146,6 +148,8 @@ void main(void)
             (j & (J_A | J_B)) && (prev_j & (J_A | J_B))) {
             ui_show_chord(cur->name, playing);
             retrig |= playing;
+            if (playing)
+                ui_push_history(cur->name);     /* log Fm etc. too */
         }
 
         /* A or B pressed: note on (B plays the swapped chord) */

@@ -91,7 +91,10 @@ static void adpcm_feed(uint8_t budget)
         return;
     YM_REG = 0xFF;                          /* data mode */
     while (ad_left && budget-- && (YM_STATUS & 0x40)) {
-        YM_DATA = *ad_ptr++;
+        /* FPGA decoder consumes the high nibble first; the encoder stores
+           the first sample in the low nibble. */
+        uint8_t packed = *ad_ptr++;
+        YM_DATA = (uint8_t)((packed << 4) | (packed >> 4));
         ad_left--;
     }
 }
@@ -100,11 +103,13 @@ static void adpcm_play(const uint8_t *data, uint16_t len)
 {
     YM_REG = 0xFD;                          /* stop */
     YM_DATA = 0x00;                         /* commit stop command */
+    ADPCM_CTRL = 0xF1;                      /* keep ADPCM muted while priming */
     ad_ptr = data;
     ad_left = len;
     adpcm_feed(64);                         /* prime the FIFO */
     YM_REG = 0xFE;                          /* play */
     YM_DATA = 0x01;                         /* commit play command */
+    ADPCM_CTRL = 0xF5;                      /* enable ADPCM after start */
 }
 
 void ym_adpcm_tick(void)
@@ -129,7 +134,7 @@ void ym_init(void)
     if (has_adpcm) {
         YM_REG = 0xFD;                      /* ADPCM stop */
         YM_DATA = 0x00;                     /* commit stop command */
-        ADPCM_CTRL = 0xF5;                  /* volume max, YM + ADPCM enable */
+        ADPCM_CTRL = 0xF1;                  /* YM enabled, ADPCM muted at boot */
     }
 }
 
