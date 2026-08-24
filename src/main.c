@@ -245,8 +245,8 @@ void main(void)
                 uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
                 if (ym) {
                     ym_drum(hit);
-                    /* FM hat (CH3) rides every 16th like the PCM8 MDX;
-                       it coexists with the ADPCM kick/snare */
+                    /* the CH7 noise hat rides every 16th like the
+                       PCM8 MDX; it coexists with the ADPCM drums */
                     if (hit != DRUM_HAT)
                         ym_drum(DRUM_HAT);
                 } else {
@@ -264,8 +264,8 @@ void main(void)
             }
         }
 
-        /* 16th off-beat FM hi-hat (YM path only: the APU noise channel
-           is shared with kick/snare, the FM hat on CH3 is not) */
+        /* 16th off-beat hi-hat (YM path only: the APU noise channel
+           is shared with kick/snare, the CH7 noise hat is not) */
         if (ym && accomp && step_timer == (uint8_t)(step_period >> 1))
             ym_drum(DRUM_HAT);
 

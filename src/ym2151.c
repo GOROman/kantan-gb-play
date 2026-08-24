@@ -6,8 +6,9 @@ static uint8_t has_adpcm;
 
 /*
  * YM2151 driver for the Chromatic FPGA expansion.
- * When detected, ALL parts play on the YM2151:
- *   CH0-2 chord, CH4 bass, CH6 FM kick, CH7 noise drums (NE bit).
+ * When detected, ALL parts play on the YM2151/ADPCM:
+ *   CH0-2 chord, CH4 bass, CH7 native-noise hi-hat;
+ *   kick/snare/crash are MSM6258 ADPCM one-shots.
  * Untestable on stock emulators; main.c falls back to the GB APU.
  */
 
@@ -201,7 +202,7 @@ void ym_drum(uint8_t type)
         ym_write(0xFF, 0xFA);                   /* C2 D1L/RR: short */
         ym_write(0x28 + 7, 0x4A);
         ym_write(0x08, 0x40 | 7);               /* key on C2 */
-        noise_frames = 2;                       /* about one video frame */
+        noise_frames = 2;                       /* cut after ~2 frames */
         return;
     }
     if (!has_adpcm)
