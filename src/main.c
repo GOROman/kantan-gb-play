@@ -26,11 +26,11 @@ void main(void)
     /* Rhythm per the X68000 MDX: four-on-the-floor kicks, and every
        8th bar a fill (kick, snare, kick 16ths, snare, crash) */
     static const uint8_t drum_main[8] = {
-        DRUM_KICK, DRUM_NONE, DRUM_KICK, DRUM_NONE,
-        DRUM_KICK, DRUM_NONE, DRUM_KICK, DRUM_NONE,
+        DRUM_KICK, DRUM_HAT, DRUM_KICK, DRUM_HAT,
+        DRUM_KICK, DRUM_HAT, DRUM_KICK, DRUM_HAT,
     };
     static const uint8_t drum_fill[8] = {
-        DRUM_KICK, DRUM_NONE, DRUM_SNARE, DRUM_NONE,
+        DRUM_KICK, DRUM_HAT, DRUM_SNARE, DRUM_HAT,
         DRUM_KICK, DRUM_KICK, DRUM_SNARE, DRUM_CRASH,
     };
     uint8_t bar = 0;
@@ -53,7 +53,7 @@ void main(void)
 
 #define STEP_PAR (step & 1)
     uint8_t pending_off = 0;    /* key-off waits for the next grid step */
-    int8_t octv = 0;            /* octave shift, -1..+1 (SELECT + left/right) */
+    int8_t octv = 0;            /* octave shift, -3..+4 (SELECT + left/right) */
     int8_t oct_off = 0;         /* octv * 12 */
     uint8_t j = 0;
     uint8_t last_raw = 0;
@@ -118,12 +118,12 @@ void main(void)
                 step_period = (uint8_t)((1800 + bpm / 2) / bpm);
                 ui_show_bpm(bpm);
             }
-            if ((j & J_RIGHT) && !(prev_j & J_RIGHT) && octv < 1) {
+            if ((j & J_RIGHT) && !(prev_j & J_RIGHT) && octv < 4) {
                 octv++;
                 oct_off = octv * 12;
                 ui_show_oct(octv);
             }
-            if ((j & J_LEFT) && !(prev_j & J_LEFT) && octv > -1) {
+            if ((j & J_LEFT) && !(prev_j & J_LEFT) && octv > -3) {
                 octv--;
                 oct_off = octv * 12;
                 ui_show_oct(octv);
@@ -178,7 +178,7 @@ void main(void)
                 acc = 1;
             if (acc && !accomp) {
                 /* on-chord: the bass pedals on C (X/C) */
-                uint8_t bass = 60 + oct_off - 36;
+                uint8_t bass = 60 + oct_off - 24;
                 if (ym)
                     ym_bass_note(bass);
                 else
@@ -233,9 +233,9 @@ void main(void)
                      (!(j & J_SELECT) &&
                       (j & (J_UP | J_DOWN | J_LEFT | J_RIGHT)));
             if (accomp) {
-                /* 8th-note octave bass C1<->C2, as in the arcade-style
-                   MDX bass track */
-                uint8_t note = 60 + oct_off - (STEP_PAR ? 24 : 36);
+                /* 8th-note octave bass C2<->C3 (the MDX uses C1<->C2,
+                   too low for a small speaker) */
+                uint8_t note = 60 + oct_off - (STEP_PAR ? 12 : 24);
                 uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
                 if (ym)
                     ym_drum(hit);

@@ -46,22 +46,23 @@ static const uint8_t voice_chord[26] = {
 static const uint8_t voice_bass[26] = {
     0x3A, 0x0F,
     0x00, 0x00, 0x04, 0x01,
-    0x22, 0x28, 0x21, 0x04,
+    0x22, 0x28, 0x21, 0x00,     /* carrier TL 4 -> 0: full level */
     0x5F, 0x5F, 0x5F, 0x9F,
     0x0B, 0x0B, 0x0B, 0x06,
     0x05, 0x05, 0x05, 0x04,
     0x37, 0x37, 0x37, 0x37,
 };
-/* single-op sine thump, M1 only (FM drum fallback on CH3) */
-static const uint8_t voice_kick[26] = {
-    0x07, 0x01,
-    0x00, 0x00, 0x00, 0x00,
-    0x00, 0x7F, 0x7F, 0x7F,
-    0x1F, 0x00, 0x00, 0x00,
-    0x0A, 0x00, 0x00, 0x00,
-    0x04, 0x00, 0x00, 0x00,
-    0xFA, 0x00, 0x00, 0x00,
+/* FM hi-hat on CH3: M1 only with max feedback = metallic hiss */
+static const uint8_t voice_hat[26] = {
+    0x3F, 0x01,
+    0x0F, 0x00, 0x00, 0x00,
+    0x1E, 0x7F, 0x7F, 0x7F,
+    0xDF, 0x00, 0x00, 0x00,
+    0x0F, 0x00, 0x00, 0x00,
+    0xC0, 0x00, 0x00, 0x00,
+    0xFF, 0x00, 0x00, 0x00,
 };
+
 static void load_voice(uint8_t ch, const uint8_t *v)
 {
     uint8_t i;
@@ -98,10 +99,12 @@ static void adpcm_feed(uint8_t budget)
 static void adpcm_play(const uint8_t *data, uint16_t len)
 {
     YM_REG = 0xFD;                          /* stop */
+    YM_DATA = 0x00;                         /* commit stop command */
     ad_ptr = data;
     ad_left = len;
     adpcm_feed(64);                         /* prime the FIFO */
     YM_REG = 0xFE;                          /* play */
+    YM_DATA = 0x01;                         /* commit play command */
 }
 
 void ym_adpcm_tick(void)
@@ -117,12 +120,16 @@ void ym_init(void)
     for (ch = 0; ch < 3; ch++)
         load_voice(ch, voice_chord);
     load_voice(4, voice_bass);
-    load_voice(3, voice_kick);              /* FM drum fallback */
+    load_voice(3, voice_hat);
 
-    has_adpcm = (EXT_VERSION >= 0x02);
+    /* This ROM targets the Chromatic bitstream with MSM6258 support.  Keep
+       the version read as informational; older bridge revisions returned
+       zero here even though the ADPCM path was present. */
+    has_adpcm = 1;
     if (has_adpcm) {
         YM_REG = 0xFD;                      /* ADPCM stop */
-        ADPCM_CTRL = 0xF4;                  /* volume max, ADPCM enable */
+        YM_DATA = 0x00;                     /* commit stop command */
+        ADPCM_CTRL = 0xF5;                  /* volume max, YM + ADPCM enable */
     }
 }
 
@@ -135,16 +142,17 @@ static const uint8_t kc_note[12] = {
 static uint8_t midi_to_kc(uint8_t note)
 {
     uint8_t sem = note % 12;
-    uint8_t oct = note / 12;    /* MIDI octave (C4=60 -> 5) */
-    uint8_t kc_o;
+    int8_t kc_o;
 
     /* A4 (69) must land on KC 0x4A: octave = midi_oct - 1, C shifts down one */
-    kc_o = oct - 1;
+    kc_o = (int8_t)(note / 12) - 1;
     if (sem == 0)
         kc_o--;
+    if (kc_o < 0)
+        kc_o = 0;
     if (kc_o > 7)
         kc_o = 7;
-    return (kc_o << 4) | kc_note[sem];
+    return ((uint8_t)kc_o << 4) | kc_note[sem];
 }
 
 void ym_chord_on(const uint8_t notes[3])
@@ -172,33 +180,26 @@ void ym_bass_off(void)
     ym_write(0x08, 4);
 }
 
+/* Kick/snare/crash are ADPCM one-shots (1ch, a new hit cuts the
+   previous one); without the ADPCM extension they stay silent
+   (FM click-drums sounded like a metronome). The hi-hat is FM on
+   CH3 either way. */
 void ym_drum(uint8_t type)
 {
-    uint8_t kc;
-
-    if (type == 0)
+    if (type == 3) {                            /* DRUM_HAT: FM */
+        ym_write(0x08, 3);
+        ym_write(0x28 + 3, 0x7A);               /* high pitch */
+        ym_write(0x08, (0x01 << 3) | 3);        /* key on M1 */
         return;
-
-    /* ADPCM one-shots (1ch, so a new hit cuts the previous one) */
-    if (has_adpcm) {
-        switch (type) {
-        case 1: adpcm_play(adpcm_kick, ADPCM_KICK_LEN); return;
-        case 2: adpcm_play(adpcm_snare, ADPCM_SNARE_LEN); return;
-        case 4: adpcm_play(adpcm_crash, ADPCM_CRASH_LEN); return;
-        default: break;     /* hat falls through to FM */
-        }
     }
-
-    /* FM fallback on CH3: same thump patch, pitched per drum */
+    if (!has_adpcm)
+        return;
     switch (type) {
-    case 1:  kc = 0x0E; break;      /* kick: low */
-    case 2:  kc = 0x3A; break;      /* snare-ish: mid */
-    case 3:  kc = 0x6A; break;      /* hat-ish: high tick */
-    default: kc = 0x5A; break;      /* crash-ish */
+    case 1: adpcm_play(adpcm_kick, ADPCM_KICK_LEN); break;
+    case 2: adpcm_play(adpcm_snare, ADPCM_SNARE_LEN); break;
+    case 4: adpcm_play(adpcm_crash, ADPCM_CRASH_LEN); break;
+    default: break;
     }
-    ym_write(0x08, 3);
-    ym_write(0x28 + 3, kc);
-    ym_write(0x08, (0x01 << 3) | 3);            /* key on M1 */
 }
 
 void ym_chord_off(void)
