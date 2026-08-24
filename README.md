@@ -9,9 +9,11 @@ Inspired by [KANTAN Play](https://github.com/InstaChord/KANTAN_Play_core)'s "deg
 
 ## ▶ Play in your browser
 
-Boots on [claude-gb-emu](https://github.com/GOROman/claude-gb-emu) (a WASM GBC emulator) with the latest ROM loaded automatically:
+Boots on [claude-gb-emu](https://github.com/GOROman/claude-gb-emu) (a WASM GBC emulator) with the latest ROM loaded automatically — **FM mode** (`&fm=1`) emulates the Chromatic YM2151/ADPCM extension:
 
-**https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc**
+**https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc&fm=1**
+
+Drop `&fm=1` (or toggle the FM ♪ button) to hear the plain GB APU fallback instead.
 
 The latest prebuilt ROM lives at the repository root as [`kantan-gb-play.gbc`](kantan-gb-play.gbc); older builds are kept in [`roms/`](roms/).
 

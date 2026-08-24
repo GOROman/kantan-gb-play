@@ -9,9 +9,11 @@
 
 ## ▶ ブラウザでいますぐ遊ぶ
 
-[claude-gb-emu](https://github.com/GOROman/claude-gb-emu)（WASM版GBCエミュレータ）上で最新ROMを自動ロードして起動します:
+[claude-gb-emu](https://github.com/GOROman/claude-gb-emu)（WASM版GBCエミュレータ）上で最新ROMを自動ロードして起動します。**FMモード**（`&fm=1`）でChromaticのYM2151/ADPCM拡張をエミュレートします:
 
-**https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc**
+**https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc&fm=1**
+
+`&fm=1` を外す（またはFM♪ボタンで切替）と素のGB APUフォールバックで鳴ります。
 
 最新のビルド済みROMはルートの [`kantan-gb-play.gbc`](kantan-gb-play.gbc)、過去のビルドは [`roms/`](roms/) にあります。
 
