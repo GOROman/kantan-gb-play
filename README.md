@@ -60,6 +60,8 @@ make run        # launch in mGBA
 make release    # copy to roms/ with a timestamp and refresh the root ROM
 ```
 
+See [docs/TECHNICAL.md](docs/TECHNICAL.md) for a full technical report (architecture, register maps, timing, GBDK pitfalls).
+
 ## Layout
 
 - `src/main.c` — main loop (input debounce, 8th-note grid, demo sequencer)

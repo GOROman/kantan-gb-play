@@ -60,6 +60,8 @@ make run        # mGBA で起動
 make release    # roms/ にタイムスタンプ付きでコピーし、ルートの最新版を更新
 ```
 
+技術詳細（アーキテクチャ、レジスタマップ、タイミング、GBDKの落とし穴）は [docs/TECHNICAL.ja.md](docs/TECHNICAL.ja.md) を参照。
+
 ## 構成
 
 - `src/main.c` — メインループ（入力デバウンス、8分グリッド、デモシーケンス）
