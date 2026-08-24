@@ -5,6 +5,8 @@
 
 ![screenshot](docs/screenshot.png)
 
+**▶ [ブラウザでいますぐ遊ぶ](https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc)**（[claude-gb-emu](https://github.com/GOROman/claude-gb-emu) 上で最新ROMを自動ロード）
+
 最新のビルド済みROMはルートの [`kantan-gb-play.gbc`](kantan-gb-play.gbc)、過去のビルドは [`roms/`](roms/) にあります。
 
 ## 操作方法
