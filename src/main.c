@@ -243,10 +243,15 @@ void main(void)
                    uses C1<->C2, too low for a small speaker) */
                 uint8_t note = 60 - (STEP_PAR ? 12 : 24);
                 uint8_t hit = ((bar & 7) == 7 ? drum_fill : drum_main)[step];
-                if (ym)
+                if (ym) {
                     ym_drum(hit);
-                else
+                    /* FM hat (CH3) rides every 16th like the PCM8 MDX;
+                       it coexists with the ADPCM kick/snare */
+                    if (hit != DRUM_HAT)
+                        ym_drum(DRUM_HAT);
+                } else {
                     apu_drum(hit);
+                }
                 if (ym)
                     ym_bass_note(note);
                 else
@@ -258,6 +263,11 @@ void main(void)
                     apu_bass_off();
             }
         }
+
+        /* 16th off-beat FM hi-hat (YM path only: the APU noise channel
+           is shared with kick/snare, the FM hat on CH3 is not) */
+        if (ym && accomp && step_timer == (uint8_t)(step_period >> 1))
+            ym_drum(DRUM_HAT);
 
         /* START: stop / panic (immediate, not quantized) */
         if ((j & J_START) && !(prev_j & J_START)) {

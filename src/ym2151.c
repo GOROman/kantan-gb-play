@@ -52,15 +52,16 @@ static const uint8_t voice_bass[26] = {
     0x05, 0x05, 0x05, 0x04,
     0x37, 0x37, 0x37, 0x37,
 };
-/* FM hi-hat on CH3: M1 only with max feedback = metallic hiss */
-static const uint8_t voice_hat[26] = {
-    0x3F, 0x01,
-    0x0F, 0x00, 0x00, 0x00,
-    0x1E, 0x7F, 0x7F, 0x7F,
-    0xDF, 0x00, 0x00, 0x00,
-    0x0F, 0x00, 0x00, 0x00,
-    0xC0, 0x00, 0x00, 0x00,
-    0xFF, 0x00, 0x00, 0x00,
+/* Native YM2151 noise on CH7: only C2 (the noise slot) sounds. */
+static const uint8_t voice_noise[26] = {
+    0x07, 0x08,
+    0x00, 0x00, 0x00, 0x00,
+    0x7F, 0x7F, 0x7F, 0x05,
+    0x00, 0x00, 0x00, 0x1F,
+    0x00, 0x00, 0x00, 0x0B,
+    0x00, 0x00, 0x00, 0x0A,     /* C2 D2R: keep decaying past D1L,
+                                   otherwise the hat sustains forever */
+    0x00, 0x00, 0x00, 0xFA,
 };
 
 static void load_voice(uint8_t ch, const uint8_t *v)
@@ -83,40 +84,40 @@ static void load_voice(uint8_t ch, const uint8_t *v)
 /* streaming state: sample currently being fed to the ADPCM FIFO */
 static const uint8_t *ad_ptr;
 static uint16_t ad_left = 0;
+static uint8_t noise_frames = 0;
 
-/* feed while the FIFO signals ready, bounded per call */
+/* FF2B: bit7-4 volume, bit3 play (edge), bit2 ADPCM enable,
+   bit1 GB APU enable, bit0 YM enable */
+#define ACTL_STOP 0xC1      /* vol C, YM on, APU off, ADPCM muted, play=0 */
+#define ACTL_PLAY 0xCD      /* vol C, YM on, APU off, ADPCM on, play=1 */
+
+/* feed while the FIFO signals ready, bounded per call.
+   FF2A is a dedicated ADPCM data port (writes), independent of the
+   YM address/data pair - no escapes, no busy interlock needed. */
 static void adpcm_feed(uint8_t budget)
 {
-    uint8_t guard = 0xFF;
-
-    if (!ad_left)
-        return;
-    /* FF28 is shared with the YM bridge.  Wait before selecting ADPCM data
-       mode so an in-flight YM address cannot be replaced by 0xFF. */
-    while ((YM_STATUS & 0x80) && --guard)
-        ;
-    YM_REG = 0xFF;                          /* data mode */
     while (ad_left && budget-- && (YM_STATUS & 0x40)) {
-        YM_DATA = *ad_ptr++;                /* MSM6258: low nibble first */
+        ADPCM_DATA = *ad_ptr++;             /* MSM6258: low nibble first */
         ad_left--;
     }
 }
 
 static void adpcm_play(const uint8_t *data, uint16_t len)
 {
-    YM_REG = 0xFD;                          /* stop */
-    YM_DATA = 0x00;                         /* commit stop command */
-    ADPCM_CTRL = 0xC1;                      /* keep ADPCM muted while priming */
+    ADPCM_CTRL = ACTL_STOP;                 /* play 1->0 edge: stop, mute */
     ad_ptr = data;
     ad_left = len;
     adpcm_feed(160);                        /* prime beyond one video frame */
-    YM_REG = 0xFE;                          /* play */
-    YM_DATA = 0x01;                         /* commit play command */
-    ADPCM_CTRL = 0xC5;                      /* enable ADPCM at balanced gain */
+    ADPCM_CTRL = ACTL_PLAY;                 /* play 0->1 edge: start */
 }
 
 void ym_adpcm_tick(void)
 {
+    if (noise_frames && --noise_frames == 0) {
+        ym_write(0x08, 7);                  /* key off CH7 */
+        ym_write(0x0F, 0x00);               /* disable noise */
+        ym_write(0x7F, 0x7F);               /* mute CH7/C2 immediately */
+    }
     if (has_adpcm)
         adpcm_feed(160);    /* > 131 bytes/frame needed at 15.6 kHz */
 }
@@ -128,17 +129,15 @@ void ym_init(void)
     for (ch = 0; ch < 3; ch++)
         load_voice(ch, voice_chord);
     load_voice(4, voice_bass);
-    load_voice(3, voice_hat);
+    load_voice(7, voice_noise);
+    ym_write(0x0F, 0x00);                   /* noise off until first hat */
 
     /* This ROM targets the Chromatic bitstream with MSM6258 support.  Keep
        the version read as informational; older bridge revisions returned
        zero here even though the ADPCM path was present. */
     has_adpcm = 1;
-    if (has_adpcm) {
-        YM_REG = 0xFD;                      /* ADPCM stop */
-        YM_DATA = 0x00;                     /* commit stop command */
-        ADPCM_CTRL = 0xC1;                  /* YM enabled, ADPCM muted at boot */
-    }
+    if (has_adpcm)
+        ADPCM_CTRL = ACTL_STOP;             /* YM on, APU off, ADPCM muted at boot */
 }
 
 /* YM2151 key code: note within octave uses a 0-15 code with gaps */
@@ -186,18 +185,23 @@ void ym_bass_note(uint8_t note)
 void ym_bass_off(void)
 {
     ym_write(0x08, 4);
+    ym_write(0x08, 7);      /* also release the hat (CH7 noise) */
 }
 
 /* Kick/snare/crash are ADPCM one-shots (1ch, a new hit cuts the
    previous one); without the ADPCM extension they stay silent
-   (FM click-drums sounded like a metronome). The hi-hat is FM on
-   CH3 either way. */
+   (FM click-drums sounded like a metronome). The hi-hat uses the
+   native YM2151 noise generator on CH7/C2. */
 void ym_drum(uint8_t type)
 {
-    if (type == 3) {                            /* DRUM_HAT: FM */
-        ym_write(0x08, 3);
-        ym_write(0x28 + 3, 0x7A);               /* high pitch */
-        ym_write(0x08, (0x01 << 3) | 3);        /* key on M1 */
+    if (type == 3) {                            /* DRUM_HAT: YM noise */
+        ym_write(0x08, 7);                      /* key off CH7 */
+        ym_write(0x0F, 0x83);                   /* noise on, bright */
+        ym_write(0x7F, 0x05);                   /* restore CH7/C2 level */
+        ym_write(0xFF, 0xFA);                   /* C2 D1L/RR: short */
+        ym_write(0x28 + 7, 0x4A);
+        ym_write(0x08, 0x40 | 7);               /* key on C2 */
+        noise_frames = 2;                       /* about one video frame */
         return;
     }
     if (!has_adpcm)
