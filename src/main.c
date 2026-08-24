@@ -158,10 +158,6 @@ void main(void)
             (j & (J_A | J_B)) && !(prev_j & (J_A | J_B))) {
             retrig = 1;
             playing = 1;
-            /* ADPCM isolation test: trigger a one-shot immediately, without
-               waiting for the accompaniment grid. */
-            if (ym)
-                ym_drum((j & J_B) ? DRUM_SNARE : DRUM_KICK);
             pending_off = 0;
             ui_show_chord(cur->name, 1);
             ui_push_history(cur->name);

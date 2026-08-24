@@ -87,22 +87,17 @@ static uint16_t ad_left = 0;
 /* feed while the FIFO signals ready, bounded per call */
 static void adpcm_feed(uint8_t budget)
 {
+    uint8_t guard = 0xFF;
+
     if (!ad_left)
         return;
+    /* FF28 is shared with the YM bridge.  Wait before selecting ADPCM data
+       mode so an in-flight YM address cannot be replaced by 0xFF. */
+    while ((YM_STATUS & 0x80) && --guard)
+        ;
     YM_REG = 0xFF;                          /* data mode */
-    /* Some bridge revisions report READY=0 until the first byte has
-       arrived.  Prime one byte unconditionally to break that deadlock. */
-    if (budget && !(YM_STATUS & 0x40)) {
-        uint8_t packed = *ad_ptr++;
-        YM_DATA = (uint8_t)((packed << 4) | (packed >> 4));
-        ad_left--;
-        budget--;
-    }
     while (ad_left && budget-- && (YM_STATUS & 0x40)) {
-        /* FPGA decoder consumes the high nibble first; the encoder stores
-           the first sample in the low nibble. */
-        uint8_t packed = *ad_ptr++;
-        YM_DATA = (uint8_t)((packed << 4) | (packed >> 4));
+        YM_DATA = *ad_ptr++;                /* MSM6258: low nibble first */
         ad_left--;
     }
 }
@@ -111,13 +106,13 @@ static void adpcm_play(const uint8_t *data, uint16_t len)
 {
     YM_REG = 0xFD;                          /* stop */
     YM_DATA = 0x00;                         /* commit stop command */
-    ADPCM_CTRL = 0xF1;                      /* keep ADPCM muted while priming */
+    ADPCM_CTRL = 0xC1;                      /* keep ADPCM muted while priming */
     ad_ptr = data;
     ad_left = len;
-    adpcm_feed(64);                         /* prime the FIFO */
+    adpcm_feed(160);                        /* prime beyond one video frame */
     YM_REG = 0xFE;                          /* play */
     YM_DATA = 0x01;                         /* commit play command */
-    ADPCM_CTRL = 0xF5;                      /* enable ADPCM after start */
+    ADPCM_CTRL = 0xC5;                      /* enable ADPCM at balanced gain */
 }
 
 void ym_adpcm_tick(void)
@@ -142,7 +137,7 @@ void ym_init(void)
     if (has_adpcm) {
         YM_REG = 0xFD;                      /* ADPCM stop */
         YM_DATA = 0x00;                     /* commit stop command */
-        ADPCM_CTRL = 0xF1;                  /* YM enabled, ADPCM muted at boot */
+        ADPCM_CTRL = 0xC1;                  /* YM enabled, ADPCM muted at boot */
     }
 }
 

@@ -11,10 +11,11 @@
  *         0xFF = data mode (following FF29 writes feed ADPCM data),
  *         0xFE = play, 0xFD = stop
  *   FF29  YM2151 register data / ADPCM data in data mode
- *   FF2A  status: bit7 busy, bit6 ADPCM ready (FIFO can accept)
+ *   FF2A  status: bit7 YM/bridge busy, bit6 ADPCM FIFO ready,
+ *                  bit5 ADPCM playback busy
  *   FF2B  bit7-4 ADPCM volume, bit2 ADPCM enable
  *   FF2E  Expansion ID      (0x51 when present)
- *   FF2F  Expansion version (>= 0x02: MSM6258 ADPCM available)
+ *   FF2F  Expansion version (>= 0x03: separated YM/ADPCM status)
  *
  * NOTE: because 0xFD-0xFF on FF28 are ADPCM escapes, the OPM D1L/RR
  * registers of channels 5-7 (C2 slot) are unreachable - those

@@ -279,7 +279,7 @@ void ui_show_adpcm(uint8_t status, uint8_t control, uint8_t version)
     gotoxy(12, 15);
     printf("V");
     print_hex2(version);
-    printf(" B%c ", (status & 0x80) ? '1' : '0');
+    printf(" B%c ", (status & 0x20) ? '1' : '0');
 }
 
 void ui_show_oct(int8_t oct)
