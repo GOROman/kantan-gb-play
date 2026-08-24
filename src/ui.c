@@ -103,7 +103,7 @@ static uint8_t is_cgb;
 static uint8_t cur_dir = DIR_NONE;
 static uint8_t cur_pal = 1;
 
-/* PROG: last 4 chords, 2 chars each at (12,8), cursor row 9 */
+/* PROG: last 8 chords in a 4x2 grid at (12,8)-(19,9) */
 static uint8_t hist_n = 0;
 
 static void set_attr_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t pal)
@@ -258,40 +258,55 @@ void ui_show_bpm(uint16_t bpm)
     printf("%u", bpm);
 }
 
+/* GBDK's printf ignores field widths like %02X, so print hex by hand */
+/* GBDK printf drops the second argument of "%c%c": print one at a time */
+static void print_hex2(uint8_t v)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    printf("%c", hex[v >> 4]);
+    printf("%c", hex[v & 0x0F]);
+}
+
 void ui_show_adpcm(uint8_t status, uint8_t control, uint8_t version)
 {
     /* keep each line <= 8 chars: column 19 is the screen edge and the
        console wraps overflow onto the next row */
     gotoxy(12, 14);
-    printf("A%02X C%02X", status, control);
+    printf("A");
+    print_hex2(status);
+    printf(" C");
+    print_hex2(control);
     gotoxy(12, 15);
-    printf("V:%02X B:%u", version, (status & 0x80) ? 1 : 0);
+    printf("V");
+    print_hex2(version);
+    printf(" B%c ", (status & 0x80) ? '1' : '0');
 }
 
 void ui_show_oct(int8_t oct)
 {
     gotoxy(12, 6);
-    printf("OCT:%c%u", oct < 0 ? '-' : '+',
-           (uint8_t)(oct < 0 ? -oct : oct));
+    /* GBDK printf: %u must get a 16-bit argument (8-bit garbles) */
+    printf("OCT:%c", (char)(oct < 0 ? '-' : '+'));
+    printf("%u", (uint16_t)(oct < 0 ? -oct : oct));
+}
+
+void ui_reset_history(void)
+{
+    hist_n = 0;
+    gotoxy(12, 8);
+    printf("        ");
+    gotoxy(12, 9);
+    printf("        ");
 }
 
 void ui_push_history(const char *name)
 {
     uint8_t slot;
 
-    if (hist_n < 4) {
-        slot = hist_n++;
-    } else {
-        /* scroll left: redraw is cheap, just restart the row */
-        hist_n = 1;
-        slot = 0;
-        gotoxy(12, 8);
-        printf("        ");
-    }
-    gotoxy(12 + slot * 2, 8);
-    printf("%c%c", name[0], name[1] ? name[1] : ' ');
-    gotoxy(12, 9);
-    printf("        ");
-    gotoxy(12 + slot * 2, 9);
-    printf("^");
+    if (hist_n >= 8)
+        ui_reset_history();
+    slot = hist_n++;
+    gotoxy(12 + (slot & 3) * 2, 8 + (slot >> 2));
+    printf("%c", name[0]);
+    printf("%c", name[1] ? name[1] : ' ');
 }

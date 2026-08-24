@@ -277,6 +277,7 @@ void main(void)
             accomp = 0;
             demo = 0;
             ui_show_chord(chords[sel].name, 0);
+            ui_reset_history();
         }
 
         /* both A and B released: key off on the next grid step */
