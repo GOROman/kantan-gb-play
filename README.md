@@ -1,68 +1,70 @@
 # KANTAN GB PLAY
 
-ゲームボーイカラー用の和音（コード）演奏アプリROM。
-[KANTAN Play](https://github.com/InstaChord/KANTAN_Play_core) の「degree + key → 和音」の考え方を踏襲し、十字キー8方向でコードを選んでAボタンで弾く楽器です。キーは C major 固定。
+**English** | [日本語](README.ja.md)
+
+A chord-playing instrument ROM for the Game Boy Color.
+Inspired by [KANTAN Play](https://github.com/InstaChord/KANTAN_Play_core)'s "degree + key → chord" concept: pick one of eight chords with the D-pad and strum it with the A button. The key is fixed to C major.
 
 ![screenshot](docs/screenshot.png)
 
-## ▶ ブラウザでいますぐ遊ぶ
+## ▶ Play in your browser
 
-[claude-gb-emu](https://github.com/GOROman/claude-gb-emu)（WASM版GBCエミュレータ）上で最新ROMを自動ロードして起動します:
+Boots on [claude-gb-emu](https://github.com/GOROman/claude-gb-emu) (a WASM GBC emulator) with the latest ROM loaded automatically:
 
 **https://goroman.github.io/claude-gb-emu/?rom=https%3A%2F%2Fraw.githubusercontent.com%2FGOROman%2Fkantan-gb-play%2Fmain%2Fkantan-gb-play.gbc**
 
-最新のビルド済みROMはルートの [`kantan-gb-play.gbc`](kantan-gb-play.gbc)、過去のビルドは [`roms/`](roms/) にあります。
+The latest prebuilt ROM lives at the repository root as [`kantan-gb-play.gbc`](kantan-gb-play.gbc); older builds are kept in [`roms/`](roms/).
 
-## 操作方法
+## Controls
 
-| 操作 | 機能 |
+| Input | Function |
 |---|---|
-| 十字キー（8方向） | コード選択（斜めは同時押し）。押している間はベース＆リズムが継続 |
-| A | コード発音（押している間鳴る。離すと次の8分グリッドで消音） |
-| B | マイナースワップ発音（C→Cm、F→Fm など。A押下中の切替も可） |
-| START | 全停止（パニック、即時） |
+| D-pad (8 directions) | Select a chord (diagonals = two buttons). Bass & rhythm keep running while held |
+| A | Play the chord (sounds while held; releases on the next 8th-note grid step) |
+| B | Play the minor-swapped chord (C→Cm, F→Fm, ...; can also toggle while A is held) |
+| START | Stop everything (panic, immediate) + reset the PROG log |
 
-### SELECTボタン系
+### SELECT combos
 
-| 操作 | 機能 |
+| Input | Function |
 |---|---|
-| SELECT＋↑ / ↓ | BPMを＋5 / −5（40〜240、初期140。上部バーに表示） |
-| SELECT＋→ / ← | オクターブを＋1 / −1（8段階: −3〜+4。`OCT:` に表示） |
-| SELECT＋A | デモモード（スペースハリアー風コード進行の自動再生、BPM155）。再度押すかSTARTで停止 |
+| SELECT + Up / Down | BPM +5 / −5 (40–240, default 155; shown in the top bar) |
+| SELECT + Right / Left | Octave +1 / −1 (8 steps: −3 to +4, shown as `OCT:`) |
+| SELECT + A | Demo mode (auto-plays a Space Harrier-style progression at BPM 155). Press again or START to stop |
 
-- 発音・消音・ベース・リズムはすべてフリーランの8分音符グリッドにクォンタイズされます
-- `PROG:` には直近に弾いた4コード（Fm等のスワップコード含む）がログ表示されます
+- Note-on/off, bass and rhythm are all quantized to a free-running 8th-note grid
+- `PROG:` logs the last 8 chords you played (including swapped ones like Fm) in a 4x2 grid
 
-## 画面
+## Screen
 
-- 中央: 8花弁のコードホイール（円周にコード名、円内に①〜⑦のディグリー番号、中央に十字キー）。選択中は紫、発音中は緑
-- 右: `CHORD`（現在のコード。ベースがCペダルのため C 以外は `Dm/C` のようなオンコード表記）、`OCT:`、`PROG:`
-- 上部バー: BPMと音源（`APU` / `YM2151`）
+- Center: an 8-petal chord wheel (chord names on the rim, KANTAN degree badges ①–⑦ inside, a D-pad cross in the middle). Purple = selected, green = playing
+- Right: `CHORD` (current chord; shown as a slash chord like `Dm/C` since the bass pedals on C), `OCT:`, `PROG:`
+- Top bar: BPM and the active sound source (`APU` / `YM2151`)
 
-## サウンド
+## Sound
 
-- **GB APU（通常のGBC/エミュレータ）**: パルス2chでコード、三角波（CH3）で8分のオクターブベース（C2⇄C3、Cペダル）、ノイズ（CH4）で4つ打ち＋8小節ごとのフィル
-- **YM2151（MODRETRO Chromatic FPGA拡張）**: 起動時に `FF2E == 0x51` を検出すると全パートがFM/ADPCMに切り替わります
-  - CH0-2: コード3声 / CH4: ベース / CH3: FMハイハット
-  - キック・スネア・クラッシュはMSM6258互換ADPCM（`FF28` エスケープ 0xFF/0xFE/0xFD、FIFOへ毎フレームストリーミング給送）
-  - コード・ベースの音色はX68000版スペースハリアーMDXのOPMボイスパラメータ由来
-  - ドラムサンプルは自前合成のオリジナル（`tools/gen_drums.py` で再生成可能）。手元のPDXの音に差し替える場合は `python3 tools/pdx2c.py <FILE.PDX> <kick> <snare> <crash>` をローカルで実行
+- **GB APU** (any GBC or emulator): two pulse channels for the chord, the wave channel (triangle) for an 8th-note octave bass (C2↔C3, C pedal), and the noise channel for a four-on-the-floor kick with a fill every 8th bar
+- **YM2151** (MODRETRO Chromatic FPGA extension): when `FF2E == 0x51` is detected at boot, every part moves to FM/ADPCM
+  - CH0-2: 3-voice chord / CH4: bass / CH3: FM hi-hat
+  - Kick, snare and crash are MSM6258-compatible ADPCM one-shots (`FF28` escapes 0xFF/0xFE/0xFD, streamed into the FIFO every frame)
+  - Chord and bass patches come from the OPM voice parameters of an X68000 Space Harrier MDX cover
+  - The drum samples are original synthesized sounds (regenerate with `tools/gen_drums.py`). To swap in samples from your own PDX file locally, run `python3 tools/pdx2c.py <FILE.PDX> <kick> <snare> <crash>`
 
-## ビルド
+## Building
 
-[GBDK-2020](https://github.com/gbdk-2020/gbdk-2020) が必要です（`~/gbdk-install/gbdk` 想定、`make GBDK=...` で変更可）。
+Requires [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020) (expected at `~/gbdk-install/gbdk`, override with `make GBDK=...`).
 
 ```sh
-make            # build/kantan-gb-play.gbc を生成
-make run        # mGBA で起動
-make release    # roms/ にタイムスタンプ付きでコピーし、ルートの最新版を更新
+make            # builds build/kantan-gb-play.gbc
+make run        # launch in mGBA
+make release    # copy to roms/ with a timestamp and refresh the root ROM
 ```
 
-## 構成
+## Layout
 
-- `src/main.c` — メインループ（入力デバウンス、8分グリッド、デモシーケンス）
-- `src/chord.c` — コードテーブル（KANTAN Music APIのCloseボイシング実出力、通常8＋スワップ8）
-- `src/sound.c` — GB APUドライバ（C2〜B7周波数テーブル、コード/ベース/ドラム）
-- `src/ym2151.c` — Chromatic拡張ドライバ（OPMボイス、KC変換、ADPCMストリーミング）
-- `src/ui.c` — UI（ホイール、ハイライト、CHORD/PROG/BPM/OCT表示）
-- `tools/` — タイル・サンプル生成スクリプト（Python）
+- `src/main.c` — main loop (input debounce, 8th-note grid, demo sequencer)
+- `src/chord.c` — chord tables (real KANTAN Music API Close-voicing output, 8 normal + 8 swapped)
+- `src/sound.c` — GB APU driver (C2–B7 period table, chord/bass/drums)
+- `src/ym2151.c` — Chromatic extension driver (OPM voices, KC conversion, ADPCM streaming)
+- `src/ui.c` — UI (wheel, highlights, CHORD/PROG/BPM/OCT displays)
+- `tools/` — tile and sample generators (Python)
